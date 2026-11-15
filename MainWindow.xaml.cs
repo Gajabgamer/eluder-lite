@@ -420,84 +420,152 @@ namespace MyOverlayPOC
         // ── Copy / Paste / Stop / Auto-Type ──────────────────────────────────────
         private async void CopyBtn_Click(object s, RoutedEventArgs e)
         {
-            try { await MainWebView.CoreWebView2.ExecuteScriptAsync("document.execCommand('copy')"); }
-            catch { }
+            try
+            {
+                string text = await GetCodeToOutputAsync();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    Clipboard.SetText(text);
+                }
+                else if (MainWebView.CoreWebView2 != null)
+                {
+                    await MainWebView.CoreWebView2.ExecuteScriptAsync("document.execCommand('copy')");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Copy error: {ex}");
+            }
         }
 
-        private async void PasteBtn_Click(object s, RoutedEventArgs e) => await PasteClipboardToWebView();
+        private void PasteBtn_Click(object s, RoutedEventArgs e) => _ = PasteToCodeEditorAsync();
 
-        private async Task PasteClipboardToWebView()
+        /// <summary>
+        /// Intelligently extracts the latest code block or highlighted selection from the AI response,
+        /// strictly ignoring ChatGPT's chat input / command textarea.
+        /// </summary>
+        private async Task<string> GetCodeToOutputAsync()
+        {
+            string text = string.Empty;
+
+            // 1. Check if user highlighted text anywhere in the WebView
+            try
+            {
+                if (MainWebView.CoreWebView2 != null)
+                {
+                    var selJson = await MainWebView.CoreWebView2.ExecuteScriptAsync("window.getSelection().toString()");
+                    if (!string.IsNullOrWhiteSpace(selJson) && selJson != "\"\"" && selJson != "null")
+                    {
+                        var sel = System.Text.Json.JsonSerializer.Deserialize<string>(selJson);
+                        if (!string.IsNullOrWhiteSpace(sel)) return sel.Trim();
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Intelligently extract the latest code block from AI response, ignoring ChatGPT prompt textarea
+            try
+            {
+                if (MainWebView.CoreWebView2 != null)
+                {
+                    const string extractJs = @"(function() {
+                        try {
+                            var blocks = document.querySelectorAll('pre code, pre, .cm-content, [class*=""code-block""]');
+                            var valid = [];
+                            for (var i = 0; i < blocks.length; i++) {
+                                var el = blocks[i];
+                                if (el.closest('#prompt-textarea') || el.closest('form') || el.id === 'prompt-textarea' || el.getAttribute('contenteditable') === 'true') {
+                                    continue;
+                                }
+                                var t = (el.innerText || el.textContent || '').trim();
+                                if (t.length > 0) {
+                                    valid.push(t);
+                                }
+                            }
+                            if (valid.length > 0) {
+                                return valid[valid.length - 1];
+                            }
+                        } catch(e) {}
+
+                        try {
+                            var msgs = document.querySelectorAll('[data-message-author-role=""assistant""], article, .agent-turn');
+                            for (var j = msgs.length - 1; j >= 0; j--) {
+                                var pre = msgs[j].querySelector('pre');
+                                if (pre) {
+                                    var pt = (pre.innerText || pre.textContent || '').trim();
+                                    if (pt.length > 0) return pt;
+                                }
+                            }
+                        } catch(e) {}
+
+                        return '';
+                    })()";
+
+                    var codeJson = await MainWebView.CoreWebView2.ExecuteScriptAsync(extractJs);
+                    if (!string.IsNullOrWhiteSpace(codeJson) && codeJson != "\"\"" && codeJson != "null")
+                    {
+                        var code = System.Text.Json.JsonSerializer.Deserialize<string>(codeJson);
+                        if (!string.IsNullOrWhiteSpace(code)) return code.Trim();
+                    }
+                }
+            }
+            catch { }
+
+            // 3. Fallback to clipboard if available
+            try
+            {
+                if (Clipboard.ContainsText())
+                {
+                    text = Clipboard.GetText();
+                }
+            }
+            catch { }
+
+            return text.Trim();
+        }
+
+        /// <summary>
+        /// Pastes directly into the user's active code editor via Alt+V or the PASTE button.
+        /// Temporarily minimizes/hides Eluder so the code editor receives native focus,
+        /// sends Ctrl+V, then restores Eluder.
+        /// </summary>
+        private async Task PasteToCodeEditorAsync()
         {
             try
             {
-                if (Clipboard.ContainsImage())
+                string code = await GetCodeToOutputAsync();
+                if (!string.IsNullOrWhiteSpace(code))
                 {
-                    // For images: focus webview and send native Ctrl+V
-                    MainWebView.Focus();
-                    await MainWebView.CoreWebView2.ExecuteScriptAsync(
-                        "document.querySelector('[contenteditable=\"true\"]," +
-                        "textarea,input[type=\"text\"]')?.focus()");
-                    await Task.Delay(80);
-                    AutoTyper.SendCtrlV();
+                    code = code.Replace("\r\n", "\n").Replace("\r", "\n");
+                    Clipboard.SetText(code);
+                }
+
+                if (!Clipboard.ContainsText() && !Clipboard.ContainsImage())
+                {
                     return;
                 }
 
-                if (!Clipboard.ContainsText()) return;
-                var text = Clipboard.GetText();
+                bool wasVisible = !_isHidden && IsVisible;
+                if (wasVisible)
+                {
+                    Hide();
+                    await Task.Delay(180); // Give Windows time to return focus to the code editor
+                }
 
-                // FIX: execCommand('insertText') is blocked in modern Chromium.
-                // Strategy: write to a hidden textarea via JS, then read it back
-                // using the native input event chain that ChatGPT/Claude listen to.
-                var escaped = System.Text.Json.JsonSerializer.Serialize(text);
-                var js = $@"(function(){{
-                    var text = {escaped};
-                    var el = document.activeElement;
-                    var isEditable = el && (el.isContentEditable ||
-                        el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
-                    if (!isEditable) {{
-                        el = document.querySelector('[contenteditable=""true""]') ||
-                             document.querySelector('textarea') ||
-                             document.querySelector('input[type=""text""]');
-                        if (el) el.focus();
-                    }}
-                    if (!el) return 'no-element';
+                // Send Ctrl+V directly to the code editor
+                AutoTyper.SendCtrlV();
 
-                    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {{
-                        var nativeSetter = Object.getOwnPropertyDescriptor(
-                            el.tagName === 'TEXTAREA'
-                                ? window.HTMLTextAreaElement.prototype
-                                : window.HTMLInputElement.prototype, 'value');
-                        var start = el.selectionStart || el.value.length;
-                        var end   = el.selectionEnd   || el.value.length;
-                        var newVal = el.value.substring(0, start) + text + el.value.substring(end);
-                        if (nativeSetter && nativeSetter.set) {{
-                            nativeSetter.set.call(el, newVal);
-                        }} else {{
-                            el.value = newVal;
-                        }}
-                        el.selectionStart = el.selectionEnd = start + text.length;
-                        el.dispatchEvent(new Event('input', {{bubbles:true}}));
-                        el.dispatchEvent(new Event('change', {{bubbles:true}}));
-                    }} else {{
-                        var sel = window.getSelection();
-                        if (sel && sel.rangeCount > 0) {{
-                            var range = sel.getRangeAt(0);
-                            range.deleteContents();
-                            range.insertNode(document.createTextNode(text));
-                            range.collapse(false);
-                            sel.removeAllRanges();
-                            sel.addRange(range);
-                        }} else {{
-                            el.textContent += text;
-                        }}
-                        el.dispatchEvent(new InputEvent('input', {{bubbles:true, inputType:'insertText', data:text}}));
-                    }}
-                    return 'ok';
-                }})()";
-                var result = await MainWebView.CoreWebView2.ExecuteScriptAsync(js);
-                Debug.WriteLine($"Paste result: {result}");
+                if (wasVisible)
+                {
+                    await Task.Delay(150);
+                    Show();
+                    Topmost = true;
+                }
             }
-            catch (Exception ex) { Debug.WriteLine($"Paste error: {ex}"); }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PasteToCodeEditor error: {ex}");
+            }
         }
 
         private void StopBtn_Click(object s, RoutedEventArgs e) => _autoTyper.TogglePause();
@@ -506,23 +574,18 @@ namespace MyOverlayPOC
         // ── AUTO-TYPE ─────────────────────────────────────────────────────────────
         private async Task StartAutoTypeFlow()
         {
-            string text = string.Empty;
-            try
-            {
-                var sel = await MainWebView.CoreWebView2.ExecuteScriptAsync("window.getSelection().toString()");
-                sel = sel?.Trim('"') ?? "";
-                if (!string.IsNullOrWhiteSpace(sel) && sel != "null")
-                    text = System.Text.RegularExpressions.Regex.Unescape(sel);
-                else if (Clipboard.ContainsText())
-                    text = Clipboard.GetText();
-            }
-            catch { if (Clipboard.ContainsText()) text = Clipboard.GetText(); }
+            string text = await GetCodeToOutputAsync();
 
             if (string.IsNullOrWhiteSpace(text))
             {
-                MessageBox.Show("No text to type. Copy something first.", "Auto-Type", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("No code found to type. Wait for the AI to generate code or highlight it first.", "Auto-Type", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+
+            // Normalize newlines to avoid double-spacing in code editors
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            try { Clipboard.SetText(text); } catch { }
 
             CountdownOverlay.Visibility = Visibility.Visible;
             _countdownCts = new CancellationTokenSource();
@@ -544,10 +607,10 @@ namespace MyOverlayPOC
 
             CountdownOverlay.Visibility = Visibility.Collapsed;
             Hide();
-            await Task.Delay(200);
+            await Task.Delay(250); // Give code editor active focus
             try { await _autoTyper.TypeAsync(text, token); }
             catch (OperationCanceledException) { }
-            finally { Show(); Activate(); }
+            finally { Show(); Activate(); Topmost = true; }
         }
 
         private void CancelAutoType_Click(object s, RoutedEventArgs e)
@@ -569,7 +632,7 @@ namespace MyOverlayPOC
             if (_altPressed && e.Key == Key.S)
             { e.Handled = true; Dispatcher.BeginInvoke(() => _ = CaptureScreenAsync()); return; }
             if (_altPressed && e.Key == Key.V)
-            { e.Handled = true; Dispatcher.BeginInvoke(() => _ = PasteClipboardToWebView()); return; }
+            { e.Handled = true; Dispatcher.BeginInvoke(() => _ = PasteToCodeEditorAsync()); return; }
             if (_altPressed && e.Key == Key.P)
             { e.Handled = true; Dispatcher.BeginInvoke(() => _autoTyper.TogglePause()); return; }
             if (e.Key == Key.F8)

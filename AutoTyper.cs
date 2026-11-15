@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,7 +66,7 @@ namespace MyOverlayPOC
         public event EventHandler? Completed;
 
         private CancellationTokenSource? _cts;
-        private const int DelayMs = 32;
+        private const int DelayMs = 18;
 
         public async Task TypeAsync(string text, CancellationToken externalToken = default)
         {
@@ -77,6 +77,9 @@ namespace MyOverlayPOC
             IsTyping = true;
             IsPaused = false;
 
+            // Normalize line endings to avoid double newlines in editors
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
             try
             {
                 for (int i = 0; i < text.Length; i++)
@@ -86,6 +89,8 @@ namespace MyOverlayPOC
                         await Task.Delay(50, token);
 
                     char c = text[i];
+                    if (c == '\r')
+                        continue;
                     if (c == '\n')
                         SendKey(0x0D);
                     else
