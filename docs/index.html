@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Eluder Admin"/>
+  <meta name="theme-color" content="#0a0a0a"/>
+  <title>Eluder Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --card-bg: #121212;
+      --card-inner: #181818;
+      --border: #222222;
+      --border-focus: #32CD32;
+      --primary: #32CD32;
+      --primary-glow: rgba(50, 205, 50, 0.25);
+      --primary-dim: #102810;
+      --danger: #ff4757;
+      --danger-dim: #2b1114;
+      --warning: #ffa502;
+      --warning-dim: #2b1e06;
+      --text: #f1f2f6;
+      --text-muted: #888888;
+      --text-sub: #a4b0be;
+      --radius-lg: 16px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 40px;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 12px var(--primary);
+      animation: pulseDot 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: var(--primary-dim);
+      color: var(--primary);
+      border: 1px solid rgba(50, 205, 50, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.95);
+      background: #202020;
+    }
+
+    /* ── Main Container ── */
+    .container {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ── Quick Stats Grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    @media (min-width: 600px) {
+      .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: #fff;
+    }
+
+    .stat-card.green .stat-value { color: var(--primary); }
+    .stat-card.yellow .stat-value { color: var(--warning); }
+    .stat-card.red .stat-value { color: var(--danger); }
+
+    /* ── Action Section: Create User ── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .input-field {
+      width: 100%;
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-size: 14px;
+      color: #fff;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-field:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    /* Plan Selector Tabs */
+    .plan-selector {
+      display: flex;
+      gap: 8px;
+      background: var(--card-inner);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+
+    .plan-tab {
+      flex: 1;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .plan-tab.active {
+      background: var(--primary);
+      color: #000;
+      box-shadow: 0 2px 8px var(--primary-glow);
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: #000;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px var(--primary-glow);
+      transition: all 0.2s;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+      filter: brightness(0.9);
+    }
+
+    /* ── Generated Result Box ── */
+    .token-result-box {
+      display: none;
+      background: #0f1c0f;
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .result-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .token-display {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      word-break: break-all;
+      background: #050b05;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed var(--primary);
+      margin-bottom: 12px;
+      user-select: all;
+    }
+
+    .share-btn-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .share-btn {
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .share-btn:active {
+      background: #222;
+    }
+
+    .share-btn.tg {
+      background: #179cde;
+      border-color: #179cde;
+      color: #fff;
+    }
+
+    .share-btn.wa {
+      background: #25d366;
+      border-color: #25d366;
+      color: #fff;
+    }
+
+    /* ── License Search & Filter ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      flex-direction: column;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .filter-chip {
+      padding: 6px 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .filter-chip.active {
+      background: #222;
+      color: #fff;
+      border-color: #444;
+    }
+
+    /* ── User License Cards List ── */
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .user-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.2s;
+    }
+
+    .user-card.revoked {
+      border-left: 3px solid var(--danger);
+      opacity: 0.75;
+    }
+
+    .user-card.bound {
+      border-left: 3px solid var(--primary);
+    }
+
+    .user-card.unused {
+      border-left: 3px solid var(--warning);
+    }
+
+    .user-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .user-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .tag.green { background: var(--primary-dim); color: var(--primary); }
+    .tag.yellow { background: var(--warning-dim); color: var(--warning); }
+    .tag.red { background: var(--danger-dim); color: var(--danger); }
+    .tag.blue { background: #101c38; color: #5352ed; }
+
+    .user-token-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-inner);
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--primary);
+      word-break: break-all;
+    }
+
+    .copy-token-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 6px;
+      font-size: 13px;
+      border-radius: 4px;
+      margin-left: 8px;
+    }
+
+    .copy-token-btn:active {
+      color: #fff;
+      background: #252525;
+    }
+
+    .user-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .user-actions {
+      display: flex;
+      gap: 6px;
+      border-top: 1px solid #1a1a1a;
+      padding-top: 8px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--card-inner);
+      color: var(--text-sub);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .action-btn:active {
+      background: #222;
+      transform: scale(0.97);
+    }
+
+    .action-btn.reset-hwid {
+      color: var(--warning);
+      border-color: rgba(255, 165, 2, 0.2);
+    }
+
+    .action-btn.revoke {
+      color: var(--danger);
+      border-color: rgba(255, 71, 87, 0.2);
+    }
+
+    .action-btn.delete {
+      color: #ff6b81;
+      border-color: rgba(255, 107, 129, 0.2);
+      max-width: 44px;
+    }
+
+    /* ── Login / Setup Modal ── */
+    #authOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .auth-box {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+    }
+
+    .auth-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .auth-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Toast Notification */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #111;
+      border: 1px solid var(--primary);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 30px;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── App Header ── -->
+  <header>
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div class="brand-title">ELUDER</div>
+      <span class="brand-badge">ADMIN</span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="fetchLicenses()" title="Refresh List">🔄</button>
+      <button class="icon-btn" onclick="logout()" title="Settings / Disconnect">⚙️</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- ── Quick Stats Grid ── -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">Total Users</span>
+        <span class="stat-value" id="statTotal">-</span>
+      </div>
+      <div class="stat-card green">
+        <span class="stat-label">Active PCs</span>
+        <span class="stat-value" id="statActive">-</span>
+      </div>
+      <div class="stat-card yellow">
+        <span class="stat-label">Unbound</span>
+        <span class="stat-value" id="statUnused">-</span>
+      </div>
+      <div class="stat-card red">
+        <span class="stat-label">Revoked</span>
+        <span class="stat-value" id="statRevoked">-</span>
+      </div>
+    </div>
+
+    <!-- ── Create New License Card ── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⚡ Create New User Key</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">USER / BUYER NAME OR TELEGRAM</label>
+        <input type="text" id="userNameInput" class="input-field" placeholder="e.g. John Doe (@johndoe)" autocomplete="off"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">LICENSE PLAN</label>
+        <div class="plan-selector">
+          <button class="plan-tab active" data-plan="paid" onclick="selectPlan('paid')">💎 Lifetime</button>
+          <button class="plan-tab" data-plan="monthly" onclick="selectPlan('monthly')">📅 Monthly</button>
+          <button class="plan-tab" data-plan="free" onclick="selectPlan('free')">🧪 Trial</button>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="createUserKey()">
+        <span>⚡ Generate & Save License</span>
+      </button>
+
+      <!-- Result Showcase -->
+      <div id="tokenResultBox" class="token-result-box">
+        <div class="result-badge">✅ New License Generated</div>
+        <div class="token-display" id="generatedTokenText">-</div>
+        <div class="share-btn-group">
+          <button class="share-btn" onclick="copyGeneratedToken()">📋 Copy Key</button>
+          <button class="share-btn" onclick="nativeShareToken()">📤 Share Key</button>
+          <a id="tgShareBtn" class="share-btn tg" target="_blank" href="#">✈️ Telegram</a>
+          <a id="waShareBtn" class="share-btn wa" target="_blank" href="#">💬 WhatsApp</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── User Licenses Manager ── -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">👥 All License Keys</span>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="searchInput" class="input-field" placeholder="🔍 Search by name, token, or HWID..." oninput="renderLicenses()"/>
+        <div class="filter-tabs">
+          <div class="filter-chip active" data-filter="all" onclick="setFilter('all')">All</div>
+          <div class="filter-chip" data-filter="bound" onclick="setFilter('bound')">🟢 Active PC</div>
+          <div class="filter-chip" data-filter="unused" onclick="setFilter('unused')">🟡 Unused</div>
+          <div class="filter-chip" data-filter="revoked" onclick="setFilter('revoked')">🔴 Revoked</div>
+        </div>
+      </div>
+
+      <div class="user-list" id="userList">
+        <div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">
+          Loading licenses...
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Auth / Supabase Secret Modal ── -->
+  <div id="authOverlay" style="display:none;">
+    <div class="auth-box">
+      <div class="auth-title">
+        <span>🔐 Eluder Admin Setup</span>
+      </div>
+      <p class="auth-desc">
+        Enter your Supabase credentials once. They will be stored securely in your phone's browser local storage.
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">SUPABASE URL</label>
+        <input type="text" id="supabaseUrlInput" class="input-field" value="https://yyqqpbobmsbkhutcdwqy.supabase.co" placeholder="https://xxx.supabase.co"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">SERVICE ROLE SECRET KEY</label>
+        <input type="password" id="supabaseKeyInput" class="input-field" placeholder="sb_secret_... or eyJhbGci..." autocomplete="off"/>
+      </div>
+
+      <button class="btn-primary" onclick="saveCredentialsAndConnect()">
+        <span>🚀 Connect to Database</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Toast Feedback ── -->
+  <div id="toast">✅ Copied to clipboard</div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // Storage & Config
+    // ─────────────────────────────────────────────────────────────
+    let SUPABASE_URL = localStorage.getItem("ELUDER_SUPA_URL") || "https://yyqqpbobmsbkhutcdwqy.supabase.co";
+    let SERVICE_KEY  = localStorage.getItem("ELUDER_SVC_KEY")  || "";
+
+    let allLicenses = [];
+    let currentFilter = "all";
+    let selectedPlan = "paid";
+    let lastGenerated = null;
+
+    // ─────────────────────────────────────────────────────────────
+    // Init
+    // ─────────────────────────────────────────────────────────────
+    window.addEventListener("DOMContentLoaded", () => {
+      // If service key is known, populate or load
+      if (!SERVICE_KEY) {
+        document.getElementById("authOverlay").style.display = "flex";
+      } else {
+        fetchLicenses();
+      }
+    });
+
+    function saveCredentialsAndConnect() {
+      const url = document.getElementById("supabaseUrlInput").value.trim();
+      const key = document.getElementById("supabaseKeyInput").value.trim();
+      if (!url || !key) {
+        showToast("⚠️ Please enter both URL and Secret Key");
+        return;
+      }
+      SUPABASE_URL = url.replace(/\/+$/, "");
+      SERVICE_KEY  = key;
+      localStorage.setItem("ELUDER_SUPA_URL", SUPABASE_URL);
+      localStorage.setItem("ELUDER_SVC_KEY", SERVICE_KEY);
+      document.getElementById("authOverlay").style.display = "none";
+      fetchLicenses();
+    }
+
+    function logout() {
+      if (confirm("Disconnect and clear saved admin keys from this device?")) {
+        localStorage.removeItem("ELUDER_SVC_KEY");
+        location.reload();
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Fetch Licenses from Supabase REST API
+    // ─────────────────────────────────────────────────────────────
+    async function fetchLicenses() {
+      const listEl = document.getElementById("userList");
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/licenses?select=*&order=created_at.desc`, {
+          headers: {
+            "apikey": SERVICE_KEY,
+            "Authorization": `Bearer ${SERVICE_KEY}`
+          }
+        });
+
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(err || `HTTP ${resp.status}`);
+        }
+
+        allLicenses = await resp.json();
+        updateStats();
+        renderLicenses();
+        showToast("⚡ Synced with database");
+      } catch (err) {
+        console.error(err);
+        showToast(`❌ Connection error: ${err.message}`);
+        listEl.innerHTML = `
+          <div style="text-align:center; padding:30px; color:var(--danger); font-size:13px;">
+            Failed to connect to Supabase.<br/><br/>
+            <button class="action-btn" style="max-width:180px; margin:0 auto;" onclick="logout()">🔑 Re-enter Key</button>
+          </div>
+        `;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Update Stats
+    // ─────────────────────────────────────────────────────────────
+    function updateStats() {
+      const total = allLicenses.length;
+      const active = allLicenses.filter(l => l.hwid && !l.revoked).length;
+      const unused = allLicenses.filter(l => !l.hwid && !l.revoked).length;
+      const revoked = allLicenses.filter(l => l.revoked).length;
+
+      document.getElementById("statTotal").textContent = total;
+      document.getElementById("statActive").textContent = active;
+      document.getElementById("statUnused").textContent = unused;
+      document.getElementById("statRevoked").textContent = revoked;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Render Filtered Licenses
+    // ─────────────────────────────────────────────────────────────
+    function renderLicenses() {
+      const listEl = document.getElementById("userList");
+      const search = document.getElementById("searchInput").value.toLowerCase().trim();
+
+      let filtered = allLicenses.filter(row => {
+        // Filter tabs
+        if (currentFilter === "bound" && (!row.hwid || row.revoked)) return false;
+        if (currentFilter === "unused" && (row.hwid || row.revoked)) return false;
+        if (currentFilter === "revoked" && !row.revoked) return false;
+
+        // Search text
+        if (search) {
+          const matchLabel = (row.label || "").toLowerCase().includes(search);
+          const matchToken = (row.token || "").toLowerCase().includes(search);
+          const matchHwid  = (row.hwid || "").toLowerCase().includes(search);
+          return matchLabel || matchToken || matchHwid;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted); font-size:13px;">No licenses found.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(row => {
+        const isBound = !!row.hwid;
+        const isRevoked = !!row.revoked;
+        const statusClass = isRevoked ? "revoked" : (isBound ? "bound" : "unused");
+        const statusTag = isRevoked
+          ? `<span class="tag red">Revoked</span>`
+          : (isBound ? `<span class="tag green">Active PC</span>` : `<span class="tag yellow">Unused</span>`);
+        const planTag = `<span class="tag blue">${row.plan || 'paid'}</span>`;
+
+        return `
+          <div class="user-card ${statusClass}">
+            <div class="user-card-header">
+              <span class="user-name">
+                👤 ${escapeHtml(row.label || "Unnamed User")}
+                ${planTag}
+                ${statusTag}
+              </span>
+            </div>
+
+            <div class="user-token-row">
+              <span>${escapeHtml(row.token)}</span>
+              <button class="copy-token-btn" onclick="copyText('${escapeHtml(row.token)}')">📋 Copy</button>
+            </div>
+
+            <div class="user-meta">
+              <span>Device: <b>${row.hwid ? escapeHtml(row.hwid.slice(0, 16)) + '...' : 'None (Ready)'}</b></span>
+              <span>Created: ${new Date(row.created_at).toLocaleDateString()}</span>
+            </div>
+
+            <div class="user-actions">
+              ${isBound ? `
+                <button class="action-btn reset-hwid" onclick="resetHwid(${row.id}, '${escapeHtml(row.label || 'User')}')">
+                  🔄 Reset PC
+                </button>
+              ` : `
+                <button class="action-btn" onclick="shareKeyQuick('${escapeHtml(row.token)}', '${escapeHtml(row.label || 'User')}')">
+                  📤 Send Key
+                </button>
+              `}
+              <button class="action-btn revoke" onclick="toggleRevoke(${row.id}, ${isRevoked})">
+                ${isRevoked ? '✅ Unban' : '🚫 Ban'}
+              </button>
+              <button class="action-btn delete" onclick="deleteLicense(${row.id})" title="Delete License">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll(".filter-chip").forEach(el => {
+        el.classList.toggle("active", el.dataset.filter === filter);
+      });
+      renderLicenses();
+    }
+
+    function selectPlan(plan) {
+      selectedPlan = plan;
+      document.querySelectorAll(".plan-tab").forEach(b => {
+        b.classList.toggle("active", b.dataset.plan === plan);
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Create New License Token
+    // ─────────────────────────────────────────────────────────────
+    function generateSecureToken() {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let token = "ELDR-";
+      const arr = new Uint8Array(28);
+      crypto.getRandomValues(arr);
+      arr.forEach(b => token += chars[b % chars.length]);
+      return token;
+    }
+
+    async function createUserKey() {
+      const nameInput = document.getElementById("userNameInput");
+      const label = nameInput.value.trim();
+      const token = generateSecureToken();
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/licenses`, {
+          method: "POST",
+          headers: {
+            "apikey": SERVICE_KEY,
+            "Authorization": `Bearer ${SERVICE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+          },
+          body: JSON.stringify({
+            token: token,
+            label: label || "Customer",
+            plan: selectedPlan,
+            hwid: null,
+            revoked: false
+          })
+        });
+
+        if (!resp.ok) {
+          throw new Error(await resp.text());
+        }
+
+        const data = await resp.json();
+        const createdRow = data[0];
+        lastGenerated = createdRow;
+
+        // Show result box
+        const resultBox = document.getElementById("tokenResultBox");
+        document.getElementById("generatedTokenText").textContent = token;
+
+        // Prep share URLs
+        const shareMsg = `Hey ${label || 'there'}! Here is your Eluder activation key:\n\n🔑 ${token}\n\n1. Download Eluder: https://github.com/Gajabgamer/eluder-lite/releases/latest\n2. Open Eluder.exe and enter your key.\nSupport: https://t.me/Hackerseb`;
+        
+        document.getElementById("tgShareBtn").href = `https://t.me/share/url?url=${encodeURIComponent('https://github.com/Gajabgamer/eluder-lite/releases/latest')}&text=${encodeURIComponent(shareMsg)}`;
+        document.getElementById("waShareBtn").href = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMsg)}`;
+
+        resultBox.style.display = "block";
+        nameInput.value = "";
+        showToast("⚡ New user key created!");
+        
+        // Refresh list
+        await fetchLicenses();
+      } catch (err) {
+        showToast(`❌ Failed to create: ${err.message}`);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Actions: Reset HWID, Ban/Unban, Delete
+    // ─────────────────────────────────────────────────────────────
+    async function resetHwid(id, name) {
+      if (!confirm(`Reset device binding for "${name}"?\nThis allows them to activate Eluder on a new PC.`)) return;
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/licenses?id=eq.${id}`, {
+          method: "PATCH",
+          headers: {
+            "apikey": SERVICE_KEY,
+            "Authorization": `Bearer ${SERVICE_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ hwid: null })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        showToast("🔄 PC Unbound successfully!");
+        fetchLicenses();
+      } catch (err) {
+        showToast(`❌ Error: ${err.message}`);
+      }
+    }
+
+    async function toggleRevoke(id, currentRevoked) {
+      const action = currentRevoked ? "unban" : "revoke/ban";
+      if (!confirm(`Are you sure you want to ${action} this license?`)) return;
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/licenses?id=eq.${id}`, {
+          method: "PATCH",
+          headers: {
+            "apikey": SERVICE_KEY,
+            "Authorization": `Bearer ${SERVICE_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ revoked: !currentRevoked })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        showToast(`License status updated!`);
+        fetchLicenses();
+      } catch (err) {
+        showToast(`❌ Error: ${err.message}`);
+      }
+    }
+
+    async function deleteLicense(id) {
+      if (!confirm("Permanently delete this license record?")) return;
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/licenses?id=eq.${id}`, {
+          method: "DELETE",
+          headers: {
+            "apikey": SERVICE_KEY,
+            "Authorization": `Bearer ${SERVICE_KEY}`
+          }
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        showToast("🗑️ License deleted");
+        fetchLicenses();
+      } catch (err) {
+        showToast(`❌ Error: ${err.message}`);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Sharing Utilities
+    // ─────────────────────────────────────────────────────────────
+    function copyText(txt) {
+      navigator.clipboard.writeText(txt);
+      showToast("📋 Copied to clipboard!");
+    }
+
+    function copyGeneratedToken() {
+      if (lastGenerated) {
+        copyText(lastGenerated.token);
+      }
+    }
+
+    async function nativeShareToken() {
+      if (!lastGenerated) return;
+      const shareData = {
+        title: "Eluder License Key",
+        text: `Here is your Eluder activation key:\n\n${lastGenerated.token}\n\nDownload: https://github.com/Gajabgamer/eluder-lite/releases/latest\nSupport: @Hackerseb`
+      };
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+        } catch (e) {}
+      } else {
+        copyGeneratedToken();
+      }
+    }
+
+    function shareKeyQuick(token, label) {
+      const msg = `Hey ${label}! Here is your Eluder key:\n\n🔑 ${token}\n\nDownload: https://github.com/Gajabgamer/eluder-lite/releases/latest\nSupport: @Hackerseb`;
+      if (navigator.share) {
+        navigator.share({ title: "Eluder Key", text: msg }).catch(() => {});
+      } else {
+        copyText(token);
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2500);
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+  </script>
+</body>
+</html>
