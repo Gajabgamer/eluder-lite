@@ -296,12 +296,14 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- TOOLS CAROUSEL OVERLAY -->
-                    <Grid x:Name="ToolsCarouselOverlay" Visibility="Collapsed" Background="#E6000000">
+                    <!-- KEYBOARD SHORTCUTS POPUP (Popup ensures it displays on top of WebView2 HWND) -->
+                    <Popup x:Name="ShortcutsPopup"
+                           PlacementTarget="{Binding ElementName=MainWebView}"
+                           Placement="Center"
+                           StaysOpen="False"
+                           AllowsTransparency="True">
                         <Border Background="#161616" BorderBrush="#333333" BorderThickness="1"
-                                CornerRadius="8" Width="360" MaxHeight="380"
-                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Padding="16,14">
+                                CornerRadius="8" Width="350" Padding="16,14">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -310,51 +312,91 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Header -->
-                                <Grid Grid.Row="0" Margin="0,0,0,10">
+                                <Grid Grid.Row="0" Margin="0,0,0,12">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="ⓘ " Foreground="#00cccc" FontSize="13" FontWeight="Bold"/>
-                                        <TextBlock Text="TOOLS &amp; SHORTCUTS GUIDE" FontSize="11" FontWeight="Bold" Foreground="#eeeeee"/>
+                                        <TextBlock Text="ⓘ " Foreground="#00cccc" FontSize="14" FontWeight="Bold"/>
+                                        <TextBlock Text="KEYBOARD SHORTCUTS" FontSize="12" FontWeight="Bold" Foreground="#eeeeee"/>
                                     </StackPanel>
                                     <Button HorizontalAlignment="Right" Style="{StaticResource FlatBtn}"
                                             Width="20" Height="20" FontSize="12" Foreground="#888"
-                                            Content="✕" Click="CloseCarousel_Click"/>
+                                            Content="✕" Click="CloseShortcuts_Click"/>
                                 </Grid>
 
-                                <!-- Carousel Slide -->
-                                <Border Grid.Row="1" Background="#0e0e0e" BorderBrush="#262626" BorderThickness="1"
-                                        CornerRadius="6" Padding="14,12" MinHeight="145">
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock x:Name="CarouselBadge" Text="FEATURE 1 OF 5"
-                                                   FontSize="9" FontWeight="Bold" Foreground="#00cccc" Margin="0,0,0,4"/>
-                                        <TextBlock x:Name="CarouselTitle" Text="AUTO-TYPE (F8)"
-                                                   FontSize="15" FontWeight="Bold" Foreground="#32CD32" Margin="0,0,0,6"/>
-                                        <TextBlock x:Name="CarouselDesc"
-                                                   Text="Simulates human typing directly into your active code editor. Click the target field during the 3s countdown. Press Esc or the red STOP button anytime to terminate instantly."
-                                                   FontSize="11.5" Foreground="#cccccc" TextWrapping="Wrap" LineHeight="16"/>
-                                        <Border Background="#1a1a1a" CornerRadius="4" Padding="6,3" Margin="0,8,0,0" HorizontalAlignment="Left">
-                                            <TextBlock x:Name="CarouselKey" Text="Shortcut: F8 | Terminate: Esc"
-                                                       FontSize="10" Foreground="#888888" FontFamily="Consolas"/>
+                                <!-- Shortcuts List -->
+                                <StackPanel Grid.Row="1">
+                                    <!-- Alt+V -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="Alt + V" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#32CD32"/>
                                         </Border>
-                                    </StackPanel>
-                                </Border>
+                                        <TextBlock Text="Paste AI Code into Editor" FontSize="11" Foreground="#dddddd"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
 
-                                <!-- Controls: Prev, Dots, Next -->
-                                <Grid Grid.Row="2" Margin="0,10,0,0">
-                                    <Button x:Name="CarouselPrevBtn" Style="{StaticResource FlatBtn}"
-                                            Content="◀ Prev" Foreground="#aaaaaa" FontSize="11" Padding="8,4"
-                                            HorizontalAlignment="Left" Click="CarouselPrev_Click"/>
+                                    <!-- F8 -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="F8" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#32CD32"/>
+                                        </Border>
+                                        <TextBlock Text="Auto-Type (3s countdown)" FontSize="11" Foreground="#dddddd"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
 
-                                    <TextBlock x:Name="CarouselDots" Text="● ○ ○ ○ ○"
-                                               FontSize="11" Foreground="#00cccc"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <!-- Esc -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="Esc" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#ff5555"/>
+                                        </Border>
+                                        <TextBlock Text="Stop / Terminate Auto-Type" FontSize="11" Foreground="#ff8888"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
 
-                                    <Button x:Name="CarouselNextBtn" Style="{StaticResource FlatBtn}"
-                                            Content="Next ▶" Foreground="#aaaaaa" FontSize="11" Padding="8,4"
-                                            HorizontalAlignment="Right" Click="CarouselNext_Click"/>
-                                </Grid>
+                                    <!-- Alt+S -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="Alt + S" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#00cccc"/>
+                                        </Border>
+                                        <TextBlock Text="Capture Screen to Sidebar" FontSize="11" Foreground="#dddddd"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Alt+~ -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="Alt + ~" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#ffaa00"/>
+                                        </Border>
+                                        <TextBlock Text="Stealth Hide / Show Overlay" FontSize="11" Foreground="#dddddd"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Alt+Shift+Z -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="Alt+Shift+Z" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#ffaa00"/>
+                                        </Border>
+                                        <TextBlock Text="Alternative Stealth Toggle" FontSize="11" Foreground="#888888"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <!-- Ctrl+C -->
+                                    <Grid Margin="0,0,0,4">
+                                        <Border Background="#222" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="Ctrl + C" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#aaaaaa"/>
+                                        </Border>
+                                        <TextBlock Text="Copy Code from AI" FontSize="11" Foreground="#aaaaaa"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- OK Button -->
+                                <Button Grid.Row="2" Margin="0,12,0,0" Style="{StaticResource FlatBtn}"
+                                        Background="#1a4a1a" Height="28"
+                                        Click="CloseShortcuts_Click">
+                                    <TextBlock Text="OK" FontWeight="Bold" Foreground="#32CD32" FontSize="12"/>
+                                </Button>
                             </Grid>
                         </Border>
-                    </Grid>
+                    </Popup>
                 </Grid>
 
                 <!-- BOTTOM BAR -->

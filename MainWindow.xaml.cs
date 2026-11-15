@@ -692,80 +692,34 @@ namespace MyOverlayPOC
             ResetAutoTypeButtons();
         }
 
-        // ── Tools Carousel ────────────────────────────────────────────────────────
-        private int _carouselIndex = 0;
-        private static readonly (string Badge, string Title, string Desc, string Key)[] CarouselSlides = new[]
-        {
-            ("FEATURE 1 OF 5", "AUTO-TYPE (F8)",
-             "Simulates human typing directly into your active code editor. Click your target code editor during the 3-second countdown. Press Esc or the red STOP button anytime to terminate instantly.",
-             "Shortcut: F8 | Terminate: Esc"),
-
-            ("FEATURE 2 OF 5", "PASTE TO EDITOR (Alt+V)",
-             "Instantly extracts the AI's latest code solution and pastes it directly at your cursor in your code editor via native clipboard insertion. Never writes into ChatGPT's prompt input.",
-             "Shortcut: Alt+V | Instant Paste"),
-
-            ("FEATURE 3 OF 5", "SCREENSHOT & SIDEBAR (Alt+S)",
-             "Captures your screen and saves thumbnails into the side tray. Drag-and-drop any thumbnail straight into ChatGPT, Claude, Gemini, or DeepSeek.",
-             "Shortcut: Alt+S | Toggle Sidebar: ⬛"),
-
-            ("FEATURE 4 OF 5", "STEALTH HIDE (Alt+~ or Alt+Shift+Z)",
-             "Instantly hides or reveals the entire overlay. Completely invisible to screen recording and screen sharing (WDA_EXCLUDEFROMCAPTURE enabled).",
-             "Shortcut: Alt+~ or Alt+Shift+Z"),
-
-            ("FEATURE 5 OF 5", "OPACITY & CLEAR CHAT",
-             "Click the percentage in the top bar to cycle opacity (100% -> 75% -> 50% -> 25%). Click CLEAR to start a fresh chat with the current AI provider.",
-             "Top bar: 100% | CLEAR button")
-        };
-
+        // ── Keyboard Shortcuts Guide Popup ────────────────────────────────────────
         private void InfoBtn_Click(object s, RoutedEventArgs e)
         {
-            ToolsCarouselOverlay.Visibility = ToolsCarouselOverlay.Visibility == Visibility.Visible
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            UpdateCarouselSlide();
+            ShortcutsPopup.IsOpen = !ShortcutsPopup.IsOpen;
         }
 
-        private void CloseCarousel_Click(object s, RoutedEventArgs e) => ToolsCarouselOverlay.Visibility = Visibility.Collapsed;
-
-        private void CarouselPrev_Click(object s, RoutedEventArgs e)
+        private void CloseShortcuts_Click(object s, RoutedEventArgs e)
         {
-            _carouselIndex = (_carouselIndex - 1 + CarouselSlides.Length) % CarouselSlides.Length;
-            UpdateCarouselSlide();
-        }
-
-        private void CarouselNext_Click(object s, RoutedEventArgs e)
-        {
-            _carouselIndex = (_carouselIndex + 1) % CarouselSlides.Length;
-            UpdateCarouselSlide();
-        }
-
-        private void UpdateCarouselSlide()
-        {
-            var slide = CarouselSlides[_carouselIndex];
-            CarouselBadge.Text = slide.Badge;
-            CarouselTitle.Text = slide.Title;
-            CarouselDesc.Text = slide.Desc;
-            CarouselKey.Text = slide.Key;
-
-            var dots = new System.Text.StringBuilder();
-            for (int i = 0; i < CarouselSlides.Length; i++)
-            {
-                dots.Append(i == _carouselIndex ? "● " : "○ ");
-            }
-            CarouselDots.Text = dots.ToString().TrimEnd();
+            ShortcutsPopup.IsOpen = false;
         }
 
         protected override void OnPreviewKeyDown(KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
-                if (_autoTyper.IsTyping || CountdownOverlay.Visibility == Visibility.Visible || ToolsCarouselOverlay.Visibility == Visibility.Visible)
+                if (ShortcutsPopup.IsOpen)
+                {
+                    e.Handled = true;
+                    ShortcutsPopup.IsOpen = false;
+                    return;
+                }
+
+                if (_autoTyper.IsTyping || CountdownOverlay.Visibility == Visibility.Visible)
                 {
                     e.Handled = true;
                     _countdownCts?.Cancel();
                     _autoTyper.Stop();
                     CountdownOverlay.Visibility = Visibility.Collapsed;
-                    ToolsCarouselOverlay.Visibility = Visibility.Collapsed;
                     ResetAutoTypeButtons();
                     return;
                 }
@@ -780,18 +734,18 @@ namespace MyOverlayPOC
             if (e.Key == Key.LeftAlt || e.Key == Key.RightAlt || e.Key == Key.System) _altPressed = true;
             if (e.Key == Key.LeftShift || e.Key == Key.RightShift) _shiftPressed = true;
 
-            // Global ESC: terminate autotype immediately from anywhere
+            // Global ESC: terminate autotype or close popup immediately from anywhere
             if (e.Key == Key.Escape)
             {
-                if (_autoTyper.IsTyping || CountdownOverlay.Visibility == Visibility.Visible || ToolsCarouselOverlay.Visibility == Visibility.Visible)
+                if (_autoTyper.IsTyping || CountdownOverlay.Visibility == Visibility.Visible || ShortcutsPopup.IsOpen)
                 {
                     e.Handled = true;
                     Dispatcher.BeginInvoke(() =>
                     {
+                        ShortcutsPopup.IsOpen = false;
                         _countdownCts?.Cancel();
                         _autoTyper.Stop();
                         CountdownOverlay.Visibility = Visibility.Collapsed;
-                        ToolsCarouselOverlay.Visibility = Visibility.Collapsed;
                         ResetAutoTypeButtons();
                     });
                     return;
