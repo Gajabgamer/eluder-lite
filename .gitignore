@@ -1,0 +1,22 @@
+# Build outputs
+bin/
+obj/
+publish/
+
+# VS / Rider
+.vs/
+*.user
+*.suo
+.idea/
+
+# WebView2 user data cache
+**/WebView2Cache/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Secrets (never commit these)
+*secret*
+*ServiceKey*
