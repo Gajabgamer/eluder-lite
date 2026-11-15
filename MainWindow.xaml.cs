@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -66,6 +66,7 @@ namespace MyOverlayPOC
                 }
                 catch { }
             }
+            // MUST call next hook immediately — never do any slow work before this
             return CallNextHookEx(_hookId, n, w, l);
         }
 
@@ -168,8 +169,19 @@ namespace MyOverlayPOC
         {
             try
             {
+                // Low-end device optimisations via Chromium flags
+                var opts = new CoreWebView2EnvironmentOptions(
+                    "--disable-gpu-compositing " +           // fall back to software compositing
+                    "--disable-background-timer-throttling " + // don't slow down when hidden
+                    "--disable-renderer-backgrounding " +    // keep renderer active when hidden
+                    "--memory-pressure-off " +               // don't aggressively free memory
+                    "--js-flags=--lite-mode " +              // V8 lite mode (less RAM)
+                    "--enable-low-end-device-mode"           // Chromium low-end device mode
+                );
+
                 var env = await CoreWebView2Environment.CreateAsync(
-                    userDataFolder: Path.Combine(_userDataFolder, "WebView2Cache"));
+                    userDataFolder: Path.Combine(_userDataFolder, "WebView2Cache"),
+                    options: opts);
                 await MainWebView.EnsureCoreWebView2Async(env);
                 MainWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
@@ -256,46 +268,48 @@ namespace MyOverlayPOC
         }
 
         // ── Capture ───────────────────────────────────────────────────────────────
-        private void CaptureBtn_Click(object s, RoutedEventArgs e) => CaptureScreen();
+        private void CaptureBtn_Click(object s, RoutedEventArgs e) => _ = CaptureScreenAsync();
 
-        private void CaptureScreen()
+        private async Task CaptureScreenAsync()
         {
             try
             {
                 GetCursorPos(out POINT cursor);
-                var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(cursor.X, cursor.Y));
-                var bounds = screen.Bounds;
+                var screenBounds = System.Windows.Forms.Screen
+                    .FromPoint(new System.Drawing.Point(cursor.X, cursor.Y)).Bounds;
 
-                using var bmp = new Bitmap(bounds.Width, bounds.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                using var g = Graphics.FromImage(bmp);
-                g.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
-
-                // Save to temp file (for drag-drop)
-                string path = Path.Combine(_tempFolder, $"shot_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-                bmp.Save(path, ImageFormat.Png);
-
-                // Convert to WPF BitmapImage
-                var bi = new BitmapImage();
-                using (var ms = new MemoryStream())
+                // FIX: Run GDI capture on background thread — prevents WebView2 blank/freeze
+                var (bitmapImage, filePath) = await Task.Run(() =>
                 {
-                    bmp.Save(ms, ImageFormat.Png);
-                    ms.Position = 0;
-                    bi.BeginInit();
-                    bi.StreamSource = ms;
-                    bi.CacheOption = BitmapCacheOption.OnLoad;
-                    bi.EndInit();
-                }
-                bi.Freeze();
+                    var bounds = screenBounds;
+                    using var bmp = new Bitmap(bounds.Width, bounds.Height,
+                        System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    using var g = Graphics.FromImage(bmp);
+                    g.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
 
-                // Copy full image to clipboard
-                Clipboard.SetImage(bi);
+                    string path = Path.Combine(_tempFolder, $"shot_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+                    bmp.Save(path, ImageFormat.Png);
 
-                // Create thumbnail for sidebar
-                var thumb = CreateThumbnail(bi, 134, 80);
-                _shots.Add((thumb, path));
-                AddThumbnailToPanel(thumb, path);
+                    var bi = new BitmapImage();
+                    using (var ms = new MemoryStream())
+                    {
+                        bmp.Save(ms, ImageFormat.Png);
+                        ms.Position = 0;
+                        bi.BeginInit();
+                        bi.StreamSource = ms;
+                        bi.CacheOption = BitmapCacheOption.OnLoad;
+                        bi.EndInit();
+                    }
+                    bi.Freeze();
+                    return (bi, path);
+                });
 
-                // Auto-open sidebar
+                // Back on UI thread: copy to clipboard and add thumbnail
+                Clipboard.SetImage(bitmapImage);
+                var thumb = CreateThumbnail(bitmapImage, 134, 80);
+                _shots.Add((thumb, filePath));
+                AddThumbnailToPanel(thumb, filePath);
+
                 if (!_sidebarVisible)
                 {
                     _sidebarVisible = true;
@@ -416,21 +430,72 @@ namespace MyOverlayPOC
         {
             try
             {
-                if (Clipboard.ContainsText())
+                if (Clipboard.ContainsImage())
                 {
-                    var text = Clipboard.GetText();
-                    var escaped = System.Text.Json.JsonSerializer.Serialize(text);
-                    var js = $"(function(){{var el=document.activeElement;if(el&&(el.isContentEditable||el.tagName==='TEXTAREA'||el.tagName==='INPUT')){{document.execCommand('insertText',false,{escaped});}}else{{var t=document.querySelector('[contenteditable=\"true\"]')||document.querySelector('textarea');if(t){{t.focus();document.execCommand('insertText',false,{escaped});}}}}}})();";
-                    await MainWebView.CoreWebView2.ExecuteScriptAsync(js);
-                }
-                else if (Clipboard.ContainsImage())
-                {
+                    // For images: focus webview and send native Ctrl+V
                     MainWebView.Focus();
-                    await Task.Delay(50);
-                    await MainWebView.CoreWebView2.ExecuteScriptAsync("document.querySelector('[contenteditable]')?.focus()");
-                    await Task.Delay(30);
+                    await MainWebView.CoreWebView2.ExecuteScriptAsync(
+                        "document.querySelector('[contenteditable=\"true\"]," +
+                        "textarea,input[type=\"text\"]')?.focus()");
+                    await Task.Delay(80);
                     AutoTyper.SendCtrlV();
+                    return;
                 }
+
+                if (!Clipboard.ContainsText()) return;
+                var text = Clipboard.GetText();
+
+                // FIX: execCommand('insertText') is blocked in modern Chromium.
+                // Strategy: write to a hidden textarea via JS, then read it back
+                // using the native input event chain that ChatGPT/Claude listen to.
+                var escaped = System.Text.Json.JsonSerializer.Serialize(text);
+                var js = $@"(function(){{
+                    var text = {escaped};
+                    var el = document.activeElement;
+                    var isEditable = el && (el.isContentEditable ||
+                        el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
+                    if (!isEditable) {{
+                        el = document.querySelector('[contenteditable=""true""]') ||
+                             document.querySelector('textarea') ||
+                             document.querySelector('input[type=""text""]');
+                        if (el) el.focus();
+                    }}
+                    if (!el) return 'no-element';
+
+                    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {{
+                        var nativeSetter = Object.getOwnPropertyDescriptor(
+                            el.tagName === 'TEXTAREA'
+                                ? window.HTMLTextAreaElement.prototype
+                                : window.HTMLInputElement.prototype, 'value');
+                        var start = el.selectionStart || el.value.length;
+                        var end   = el.selectionEnd   || el.value.length;
+                        var newVal = el.value.substring(0, start) + text + el.value.substring(end);
+                        if (nativeSetter && nativeSetter.set) {{
+                            nativeSetter.set.call(el, newVal);
+                        }} else {{
+                            el.value = newVal;
+                        }}
+                        el.selectionStart = el.selectionEnd = start + text.length;
+                        el.dispatchEvent(new Event('input', {{bubbles:true}}));
+                        el.dispatchEvent(new Event('change', {{bubbles:true}}));
+                    }} else {{
+                        var sel = window.getSelection();
+                        if (sel && sel.rangeCount > 0) {{
+                            var range = sel.getRangeAt(0);
+                            range.deleteContents();
+                            range.insertNode(document.createTextNode(text));
+                            range.collapse(false);
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        }} else {{
+                            el.textContent += text;
+                        }}
+                        el.dispatchEvent(new InputEvent('input', {{bubbles:true, inputType:'insertText', data:text}}));
+                    }}
+                    return 'ok';
+                }})()";
+                var result = await MainWebView.CoreWebView2.ExecuteScriptAsync(js);
+                Debug.WriteLine($"Paste result: {result}");
             }
             catch (Exception ex) { Debug.WriteLine($"Paste error: {ex}"); }
         }
@@ -493,21 +558,22 @@ namespace MyOverlayPOC
         }
 
         // ── Global Keys ───────────────────────────────────────────────────────────
+        // FIX: mark Handled immediately, then post to UI thread — never block hook callback
         private void OnGlobalKeyDown(object? s, GlobalKeyEventArgs e)
         {
             if (e.Key == Key.LeftAlt || e.Key == Key.RightAlt || e.Key == Key.System) _altPressed = true;
             if (e.Key == Key.LeftShift || e.Key == Key.RightShift) _shiftPressed = true;
 
             if (_altPressed && (e.Key == Key.OemTilde || (_shiftPressed && e.Key == Key.Z)))
-            { e.Handled = true; Dispatcher.InvokeAsync(ToggleWindowVisibility); return; }
+            { e.Handled = true; Dispatcher.BeginInvoke(ToggleWindowVisibility); return; }
             if (_altPressed && e.Key == Key.S)
-            { e.Handled = true; Dispatcher.InvokeAsync(CaptureScreen); return; }
+            { e.Handled = true; Dispatcher.BeginInvoke(() => _ = CaptureScreenAsync()); return; }
             if (_altPressed && e.Key == Key.V)
-            { e.Handled = true; Dispatcher.InvokeAsync(async () => await PasteClipboardToWebView()); return; }
+            { e.Handled = true; Dispatcher.BeginInvoke(() => _ = PasteClipboardToWebView()); return; }
             if (_altPressed && e.Key == Key.P)
-            { e.Handled = true; Dispatcher.InvokeAsync(() => _autoTyper.TogglePause()); return; }
+            { e.Handled = true; Dispatcher.BeginInvoke(() => _autoTyper.TogglePause()); return; }
             if (e.Key == Key.F8)
-            { e.Handled = true; Dispatcher.InvokeAsync(async () => await StartAutoTypeFlow()); return; }
+            { e.Handled = true; Dispatcher.BeginInvoke(() => _ = StartAutoTypeFlow()); return; }
         }
 
         private void OnGlobalKeyUp(object? s, GlobalKeyEventArgs e)
