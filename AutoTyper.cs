@@ -63,6 +63,7 @@ namespace MyOverlayPOC
         public bool IsPaused { get; private set; }
 
         public event EventHandler<AutoTypeProgressEventArgs>? Progress;
+        public event EventHandler? Started;
         public event EventHandler? Completed;
 
         private CancellationTokenSource? _cts;
@@ -76,6 +77,7 @@ namespace MyOverlayPOC
 
             IsTyping = true;
             IsPaused = false;
+            Started?.Invoke(this, EventArgs.Empty);
 
             // Normalize line endings to avoid double newlines in editors
             text = text.Replace("\r\n", "\n").Replace("\r", "\n");
@@ -114,6 +116,9 @@ namespace MyOverlayPOC
         public void Stop()        => _cts?.Cancel();
         public void TogglePause() { if (IsPaused) Resume(); else Pause(); }
 
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
         private static void SendUnicode(char c)
         {
             var inputs = new INPUT[2];
@@ -136,12 +141,18 @@ namespace MyOverlayPOC
 
         public static void SendCtrlV()
         {
-            var inputs = new INPUT[4];
-            inputs[0].type = INPUT_KEYBOARD; inputs[0].u.ki = new KEYBDINPUT { wVk = 0x11 };
-            inputs[1].type = INPUT_KEYBOARD; inputs[1].u.ki = new KEYBDINPUT { wVk = 0x56 };
-            inputs[2].type = INPUT_KEYBOARD; inputs[2].u.ki = new KEYBDINPUT { wVk = 0x56, dwFlags = KEYEVENTF_KEYUP };
-            inputs[3].type = INPUT_KEYBOARD; inputs[3].u.ki = new KEYBDINPUT { wVk = 0x11, dwFlags = KEYEVENTF_KEYUP };
-            SendInput(4, inputs, Marshal.SizeOf<INPUT>());
+            // CRITICAL: Ensure physical Alt, Shift, and Windows keys are released before Ctrl+V!
+            // When user presses Alt+V, Alt is physically held down. Sending Ctrl+V without releasing Alt
+            // results in Ctrl+Alt+V which is ignored by code editors!
+            keybd_event(0x12, 0, 0x0002, UIntPtr.Zero); // VK_MENU (Alt) UP
+            keybd_event(0x10, 0, 0x0002, UIntPtr.Zero); // VK_SHIFT UP
+            keybd_event(0x5B, 0, 0x0002, UIntPtr.Zero); // VK_LWIN UP
+
+            // Send Ctrl+V
+            keybd_event(0x11, 0, 0, UIntPtr.Zero);      // VK_CONTROL DOWN
+            keybd_event(0x56, 0, 0, UIntPtr.Zero);      // 'V' DOWN
+            keybd_event(0x56, 0, 0x0002, UIntPtr.Zero); // 'V' UP
+            keybd_event(0x11, 0, 0x0002, UIntPtr.Zero); // VK_CONTROL UP
         }
     }
 }

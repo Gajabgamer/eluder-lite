@@ -90,6 +90,10 @@ namespace MyOverlayPOC
         [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr i, int x, int y, int cx, int cy, uint f);
         [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
         [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+        [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+
+        private const int WM_NCLBUTTONDOWN = 0xA1;
+        private const int HTCAPTION = 0x2;
 
         private static readonly IntPtr HWND_TOPMOST = new(-1);
         private const uint SWP_NOMOVE = 0x0002, SWP_NOSIZE = 0x0001;
@@ -136,8 +140,13 @@ namespace MyOverlayPOC
             _keyboardHook.KeyDown += OnGlobalKeyDown;
             _keyboardHook.KeyUp  += OnGlobalKeyUp;
 
+            _autoTyper.Started   += (_, _) => Dispatcher.InvokeAsync(SetAutoTypeButtonsActive);
             _autoTyper.Progress  += (_, e) => Dispatcher.InvokeAsync(() => CountdownText.Text = $"Typing...\n{e.CharactersTyped}/{e.TotalCharacters}");
-            _autoTyper.Completed += async (_, _) => await Dispatcher.InvokeAsync(() => { Show(); Activate(); });
+            _autoTyper.Completed += async (_, _) => await Dispatcher.InvokeAsync(() => {
+                ResetAutoTypeButtons();
+                Show();
+                Activate();
+            });
 
             Loaded += async (_, _) => await InitWebViewAsync();
         }
@@ -224,7 +233,15 @@ namespace MyOverlayPOC
         private void BackBtn_Click(object s, RoutedEventArgs e) { if (MainWebView.CoreWebView2?.CanGoBack == true) MainWebView.GoBack(); }
         private void ForwardBtn_Click(object s, RoutedEventArgs e) { if (MainWebView.CoreWebView2?.CanGoForward == true) MainWebView.GoForward(); }
         private void RefreshBtn_Click(object s, RoutedEventArgs e) => MainWebView.CoreWebView2?.Reload();
-        private void DragArea_MouseLeftButtonDown(object s, MouseButtonEventArgs e) { if (e.ButtonState == MouseButtonState.Pressed) DragMove(); }
+        private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                ReleaseCapture();
+                SendMessage(_hwnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+            }
+        }
+        private void DragArea_MouseLeftButtonDown(object s, MouseButtonEventArgs e) => Window_MouseLeftButtonDown(s, e);
 
         // ── Opacity ───────────────────────────────────────────────────────────────
         private void OpacityBtn_Click(object s, RoutedEventArgs e)
@@ -524,10 +541,26 @@ namespace MyOverlayPOC
             return text.Trim();
         }
 
+        private static void SafeSetClipboardText(string text)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    Clipboard.SetDataObject(text, true);
+                    return;
+                }
+                catch
+                {
+                    Thread.Sleep(30);
+                }
+            }
+        }
+
         /// <summary>
         /// Pastes directly into the user's active code editor via Alt+V or the PASTE button.
-        /// Temporarily minimizes/hides Eluder so the code editor receives native focus,
-        /// sends Ctrl+V, then restores Eluder.
+        /// Temporarily hides Eluder so the code editor receives native focus,
+        /// releases physical Alt/modifier keys, sends Ctrl+V, then restores Eluder.
         /// </summary>
         private async Task PasteToCodeEditorAsync()
         {
@@ -537,7 +570,7 @@ namespace MyOverlayPOC
                 if (!string.IsNullOrWhiteSpace(code))
                 {
                     code = code.Replace("\r\n", "\n").Replace("\r", "\n");
-                    Clipboard.SetText(code);
+                    SafeSetClipboardText(code);
                 }
 
                 if (!Clipboard.ContainsText() && !Clipboard.ContainsImage())
@@ -549,10 +582,10 @@ namespace MyOverlayPOC
                 if (wasVisible)
                 {
                     Hide();
-                    await Task.Delay(180); // Give Windows time to return focus to the code editor
+                    await Task.Delay(200); // Give Windows time to return focus to the code editor
                 }
 
-                // Send Ctrl+V directly to the code editor
+                // Send Ctrl+V directly to the code editor (AutoTyper.SendCtrlV releases Alt first!)
                 AutoTyper.SendCtrlV();
 
                 if (wasVisible)
@@ -568,7 +601,39 @@ namespace MyOverlayPOC
             }
         }
 
-        private void StopBtn_Click(object s, RoutedEventArgs e) => _autoTyper.TogglePause();
+        // ── AutoType Button Color States ──────────────────────────────────────────
+        private void SetAutoTypeButtonsActive()
+        {
+            AutoTypeBtn.Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1a4a1a"));
+            AutoTypeBtnText.Text = "TYPING...";
+            AutoTypeBtnText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#32CD32"));
+
+            StopBtn.Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4a1a1a"));
+            StopBtnText.Text = "STOP";
+            StopBtnText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#ff4444"));
+            StopBtnSub.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#ff8888"));
+        }
+
+        private void ResetAutoTypeButtons()
+        {
+            AutoTypeBtn.Background = System.Windows.Media.Brushes.Transparent;
+            AutoTypeBtnText.Text = "AUTO-TYPE";
+            AutoTypeBtnText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#aaaaaa"));
+
+            StopBtn.Background = System.Windows.Media.Brushes.Transparent;
+            StopBtnText.Text = "STOP";
+            StopBtnText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#aaaaaa"));
+            StopBtnSub.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#555555"));
+        }
+
+        private void StopBtn_Click(object s, RoutedEventArgs e)
+        {
+            _countdownCts?.Cancel();
+            _autoTyper.Stop();
+            CountdownOverlay.Visibility = Visibility.Collapsed;
+            ResetAutoTypeButtons();
+        }
+
         private void AutoTypeBtn_Click(object s, RoutedEventArgs e) => _ = StartAutoTypeFlow();
 
         // ── AUTO-TYPE ─────────────────────────────────────────────────────────────
@@ -585,7 +650,7 @@ namespace MyOverlayPOC
             // Normalize newlines to avoid double-spacing in code editors
             text = text.Replace("\r\n", "\n").Replace("\r", "\n");
 
-            try { Clipboard.SetText(text); } catch { }
+            try { SafeSetClipboardText(text); } catch { }
 
             CountdownOverlay.Visibility = Visibility.Visible;
             _countdownCts = new CancellationTokenSource();
@@ -602,6 +667,7 @@ namespace MyOverlayPOC
             catch (OperationCanceledException)
             {
                 CountdownOverlay.Visibility = Visibility.Collapsed;
+                ResetAutoTypeButtons();
                 return;
             }
 
@@ -610,7 +676,12 @@ namespace MyOverlayPOC
             await Task.Delay(250); // Give code editor active focus
             try { await _autoTyper.TypeAsync(text, token); }
             catch (OperationCanceledException) { }
-            finally { Show(); Activate(); Topmost = true; }
+            finally {
+                ResetAutoTypeButtons();
+                Show();
+                Activate();
+                Topmost = true;
+            }
         }
 
         private void CancelAutoType_Click(object s, RoutedEventArgs e)
@@ -618,6 +689,88 @@ namespace MyOverlayPOC
             _countdownCts?.Cancel();
             _autoTyper.Stop();
             CountdownOverlay.Visibility = Visibility.Collapsed;
+            ResetAutoTypeButtons();
+        }
+
+        // ── Tools Carousel ────────────────────────────────────────────────────────
+        private int _carouselIndex = 0;
+        private static readonly (string Badge, string Title, string Desc, string Key)[] CarouselSlides = new[]
+        {
+            ("FEATURE 1 OF 5", "AUTO-TYPE (F8)",
+             "Simulates human typing directly into your active code editor. Click your target code editor during the 3-second countdown. Press Esc or the red STOP button anytime to terminate instantly.",
+             "Shortcut: F8 | Terminate: Esc"),
+
+            ("FEATURE 2 OF 5", "PASTE TO EDITOR (Alt+V)",
+             "Instantly extracts the AI's latest code solution and pastes it directly at your cursor in your code editor via native clipboard insertion. Never writes into ChatGPT's prompt input.",
+             "Shortcut: Alt+V | Instant Paste"),
+
+            ("FEATURE 3 OF 5", "SCREENSHOT & SIDEBAR (Alt+S)",
+             "Captures your screen and saves thumbnails into the side tray. Drag-and-drop any thumbnail straight into ChatGPT, Claude, Gemini, or DeepSeek.",
+             "Shortcut: Alt+S | Toggle Sidebar: ⬛"),
+
+            ("FEATURE 4 OF 5", "STEALTH HIDE (Alt+~ or Alt+Shift+Z)",
+             "Instantly hides or reveals the entire overlay. Completely invisible to screen recording and screen sharing (WDA_EXCLUDEFROMCAPTURE enabled).",
+             "Shortcut: Alt+~ or Alt+Shift+Z"),
+
+            ("FEATURE 5 OF 5", "OPACITY & CLEAR CHAT",
+             "Click the percentage in the top bar to cycle opacity (100% -> 75% -> 50% -> 25%). Click CLEAR to start a fresh chat with the current AI provider.",
+             "Top bar: 100% | CLEAR button")
+        };
+
+        private void InfoBtn_Click(object s, RoutedEventArgs e)
+        {
+            ToolsCarouselOverlay.Visibility = ToolsCarouselOverlay.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            UpdateCarouselSlide();
+        }
+
+        private void CloseCarousel_Click(object s, RoutedEventArgs e) => ToolsCarouselOverlay.Visibility = Visibility.Collapsed;
+
+        private void CarouselPrev_Click(object s, RoutedEventArgs e)
+        {
+            _carouselIndex = (_carouselIndex - 1 + CarouselSlides.Length) % CarouselSlides.Length;
+            UpdateCarouselSlide();
+        }
+
+        private void CarouselNext_Click(object s, RoutedEventArgs e)
+        {
+            _carouselIndex = (_carouselIndex + 1) % CarouselSlides.Length;
+            UpdateCarouselSlide();
+        }
+
+        private void UpdateCarouselSlide()
+        {
+            var slide = CarouselSlides[_carouselIndex];
+            CarouselBadge.Text = slide.Badge;
+            CarouselTitle.Text = slide.Title;
+            CarouselDesc.Text = slide.Desc;
+            CarouselKey.Text = slide.Key;
+
+            var dots = new System.Text.StringBuilder();
+            for (int i = 0; i < CarouselSlides.Length; i++)
+            {
+                dots.Append(i == _carouselIndex ? "● " : "○ ");
+            }
+            CarouselDots.Text = dots.ToString().TrimEnd();
+        }
+
+        protected override void OnPreviewKeyDown(KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                if (_autoTyper.IsTyping || CountdownOverlay.Visibility == Visibility.Visible || ToolsCarouselOverlay.Visibility == Visibility.Visible)
+                {
+                    e.Handled = true;
+                    _countdownCts?.Cancel();
+                    _autoTyper.Stop();
+                    CountdownOverlay.Visibility = Visibility.Collapsed;
+                    ToolsCarouselOverlay.Visibility = Visibility.Collapsed;
+                    ResetAutoTypeButtons();
+                    return;
+                }
+            }
+            base.OnPreviewKeyDown(e);
         }
 
         // ── Global Keys ───────────────────────────────────────────────────────────
@@ -626,6 +779,24 @@ namespace MyOverlayPOC
         {
             if (e.Key == Key.LeftAlt || e.Key == Key.RightAlt || e.Key == Key.System) _altPressed = true;
             if (e.Key == Key.LeftShift || e.Key == Key.RightShift) _shiftPressed = true;
+
+            // Global ESC: terminate autotype immediately from anywhere
+            if (e.Key == Key.Escape)
+            {
+                if (_autoTyper.IsTyping || CountdownOverlay.Visibility == Visibility.Visible || ToolsCarouselOverlay.Visibility == Visibility.Visible)
+                {
+                    e.Handled = true;
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        _countdownCts?.Cancel();
+                        _autoTyper.Stop();
+                        CountdownOverlay.Visibility = Visibility.Collapsed;
+                        ToolsCarouselOverlay.Visibility = Visibility.Collapsed;
+                        ResetAutoTypeButtons();
+                    });
+                    return;
+                }
+            }
 
             if (_altPressed && (e.Key == Key.OemTilde || (_shiftPressed && e.Key == Key.Z)))
             { e.Handled = true; Dispatcher.BeginInvoke(ToggleWindowVisibility); return; }
