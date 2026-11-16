@@ -157,6 +157,17 @@ namespace MyOverlayPOC
             SetWindowDisplayAffinity(_hwnd, WDA_EXCLUDEFROMCAPTURE);
             SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
+            // Position overlay on the primary screen top-left corner area (not off-screen / second monitor)
+            var screen = System.Windows.Forms.Screen.PrimaryScreen;
+            if (screen != null)
+            {
+                var dpi = VisualTreeHelper.GetDpi(this);
+                double scaleX = dpi.DpiScaleX;
+                double scaleY = dpi.DpiScaleY;
+                // Place at top-left with a margin, anchored on primary screen
+                Left = (screen.WorkingArea.Left / scaleX) + 20;
+                Top  = (screen.WorkingArea.Top  / scaleY) + 20;
+            }
         }
 
         // ── Opacity: WPF Opacity for bars + JS brightness for WebView2 ──────────
@@ -178,27 +189,46 @@ namespace MyOverlayPOC
         {
             try
             {
-                // Low-end device optimisations via Chromium flags
+                // Performance flags: disable GPU compositing (avoid "second screen" HwndHost layer),
+                // cap raster tile size, disable unnecessary bg tasks, reduce memory pressure.
                 var opts = new CoreWebView2EnvironmentOptions(
-                    "--disable-gpu-compositing " +           // fall back to software compositing
-                    "--disable-background-timer-throttling " + // don't slow down when hidden
-                    "--disable-renderer-backgrounding " +    // keep renderer active when hidden
-                    "--memory-pressure-off " +               // don't aggressively free memory
-                    "--js-flags=--lite-mode " +              // V8 lite mode (less RAM)
-                    "--enable-low-end-device-mode"           // Chromium low-end device mode
+                    "--disable-gpu-compositing " +               // software compositing — no separate GPU surface
+                    "--disable-gpu-vsync " +                     // remove vsync overhead on overlay
+                    "--disable-backgrounding-occluded-windows " + // keep rendering even when overlapped
+                    "--disable-background-timer-throttling " +   // don't slow timers when hidden
+                    "--disable-renderer-backgrounding " +        // keep renderer alive when hidden
+                    "--max-decoded-image-size-mb=64 " +          // cap image decode RAM
+                    "--tile-width=256 --tile-height=256 " +      // smaller tiles = less VRAM per frame
+                    "--num-raster-threads=1 " +                  // limit raster threads (lighter)
+                    "--enable-low-end-device-mode " +            // Chromium low-end mode
+                    "--js-flags=--lite-mode"                     // V8 lite — less JIT overhead
                 );
 
                 var env = await CoreWebView2Environment.CreateAsync(
                     userDataFolder: Path.Combine(_userDataFolder, "WebView2Cache"),
                     options: opts);
                 await MainWebView.EnsureCoreWebView2Async(env);
+
+                // Disable unnecessary chrome
                 MainWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 MainWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                MainWebView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+
+                // Allow clipboard read (for copy feature)
                 MainWebView.CoreWebView2.PermissionRequested += (s, ev) =>
                 {
                     if (ev.PermissionKind == CoreWebView2PermissionKind.ClipboardRead)
                         ev.State = CoreWebView2PermissionState.Allow;
                 };
+
+                // Inject CSS to prevent the page from causing horizontal scrollbar / overflow
+                MainWebView.CoreWebView2.DOMContentLoaded += async (s, ev) =>
+                {
+                    await MainWebView.CoreWebView2.ExecuteScriptAsync(
+                        "document.documentElement.style.overscrollBehavior='none';" +
+                        "document.body && (document.body.style.overscrollBehavior='none');");
+                };
+
                 MainWebView.CoreWebView2.Navigate(Providers[_currentProvider].Url);
             }
             catch (Exception ex)

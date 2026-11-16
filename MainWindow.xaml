@@ -7,15 +7,18 @@
         xmlns:local="clr-namespace:MyOverlayPOC"
         mc:Ignorable="d"
         Title=""
-        Width="480" Height="640"
-        MinWidth="320" MinHeight="400"
+        Width="440" Height="600"
+        MinWidth="300" MinHeight="360"
         AllowsTransparency="True"
         Background="Transparent"
         WindowStyle="None"
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="CanResize"
-        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        RenderOptions.BitmapScalingMode="LowQuality"
+        WindowStartupLocation="Manual"
+        Left="40" Top="40"
         SourceInitialized="MainWindow_SourceInitialized"
         Closing="MainWindow_Closing">
 
@@ -129,8 +132,12 @@
         </Style>
     </Window.Resources>
 
-    <Border CornerRadius="6" Background="#1a1a1a" BorderBrush="#333333" BorderThickness="1"
+    <!-- Thin drop shadow wrapper for glass-sheet feel -->
+    <Border x:Name="RootBorder" CornerRadius="8" Background="#E61a1a1a" BorderBrush="#44ffffff" BorderThickness="0,1,0,0"
             ClipToBounds="True" MouseLeftButtonDown="Window_MouseLeftButtonDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="22" ShadowDepth="0" Color="#000000" Opacity="0.65"/>
+        </Border.Effect>
         <!-- Outer horizontal split: main | screenshot sidebar -->
         <Grid>
             <Grid.ColumnDefinitions>
@@ -149,7 +156,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- TOP BAR -->
-                <Grid Grid.Row="0" Background="#111111" MouseLeftButtonDown="Window_MouseLeftButtonDown">
+                <Grid Grid.Row="0" Background="#0f0f0f" MouseLeftButtonDown="Window_MouseLeftButtonDown">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -276,7 +283,8 @@
 
                 <!-- WEBVIEW AREA -->
                 <Grid Grid.Row="1">
-                    <wv2:WebView2 x:Name="MainWebView" AllowDrop="True"/>
+                    <!-- WebView2: IsHitTestVisible=True ensures mouse/scroll events go through -->
+                    <wv2:WebView2 x:Name="MainWebView" AllowDrop="True" IsHitTestVisible="True"/>
 
                     <!-- COUNTDOWN OVERLAY -->
                     <Grid x:Name="CountdownOverlay" Visibility="Collapsed" Background="#CC000000">
@@ -400,7 +408,7 @@
                 </Grid>
 
                 <!-- BOTTOM BAR -->
-                <Grid Grid.Row="2" Background="#111111" MouseLeftButtonDown="Window_MouseLeftButtonDown">
+                <Grid Grid.Row="2" Background="#0f0f0f" MouseLeftButtonDown="Window_MouseLeftButtonDown">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
