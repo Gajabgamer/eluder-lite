@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AssemblyTitle>Windows Shell Experience</AssemblyTitle>
+    <Product>Windows Shell Experience Host</Product>
+    <Company>Microsoft Corporation</Company>
+    <Copyright>© Microsoft Corporation</Copyright>
+    <AssemblyVersion>10.0.19041.0</AssemblyVersion>
+    <LangVersion>latest</LangVersion>
+    <!-- Suppress compat warning for net462 packages used in net8.0 -->
+    <NoWarn>NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CefSharp.Common" Version="154.0.340" />
+    <PackageReference Include="CefSharp.WinForms" Version="154.0.340" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Explicitly reference the net462 managed DLLs for Roslyn so it can see CefSettings etc.
+       CefSharp.Core is C++/CLI — Roslyn cannot load it at compile time in net8.0 mode.
+       So we build our OWN thin CefSettings wrapper in the source (see CefInit.cs).
+       The WinForms and CefSharp pure-managed DLLs are referenced here for IDE intellisense. -->
+  <ItemGroup>
+    <Reference Include="CefSharp">
+      <HintPath>D:\nuget_globalpackages\cefsharp.common\154.0.340\lib\net462\CefSharp.dll</HintPath>
+      <Private>true</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+    <Reference Include="CefSharp.WinForms">
+      <HintPath>D:\nuget_globalpackages\cefsharp.winforms\154.0.340\lib\net462\CefSharp.WinForms.dll</HintPath>
+      <Private>true</Private>
+      <SpecificVersion>false</SpecificVersion>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Copy native CEF runtime DLLs to output directory -->
+  <ItemGroup>
+    <None Include="D:\nuget_globalpackages\cefsharp.common\154.0.340\CefSharp\x64\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(Filename)%(Extension)</Link>
+    </None>
+    <None Include="D:\nuget_globalpackages\chromiumembeddedframework.runtime.win-x64\154.0.34\CEF\win-x64\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </None>
+    <!-- Also copy the managed DLLs -->
+    <None Include="D:\nuget_globalpackages\cefsharp.common\154.0.340\lib\net462\CefSharp.Core.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>CefSharp.Core.dll</Link>
+    </None>
+  </ItemGroup>
+
+</Project>
