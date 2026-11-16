@@ -85,19 +85,51 @@ namespace MyOverlayPOC
 
     public partial class MainWindow : Window
     {
-        // Win32
+        // ── Win32 P/Invoke ────────────────────────────────────────────────────────
         [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr h, uint a);
         [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr i, int x, int y, int cx, int cy, uint f);
         [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
         [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
         [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+        [DllImport("user32.dll")] private static extern int  GetWindowLong(IntPtr h, int n);
+        [DllImport("user32.dll")] private static extern int  SetWindowLong(IntPtr h, int n, int v);
+        [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
+        [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+        [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+        [DllImport("kernel32.dll")] private static extern uint GetCurrentProcessId();
 
+        // Window Long index
+        private const int GWL_EXSTYLE = -20;
+
+        // Extended window style flags
+        private const int WS_EX_TOOLWINDOW   = 0x00000080;  // hide from Alt+Tab AND EnumWindows-based scanners
+        private const int WS_EX_NOACTIVATE   = 0x08000000;  // window never steals foreground focus
+        private const int WS_EX_LAYERED      = 0x00080000;  // needed for AllowsTransparency in WPF
+        private const int WS_EX_TRANSPARENT  = 0x00000020;  // hit-test transparent (use only when hidden)
+        private const int WS_EX_APPWINDOW    = 0x00040000;  // force into taskbar — we REMOVE this
+
+        // SetWindowPos flags
+        private const uint SWP_NOMOVE      = 0x0002;
+        private const uint SWP_NOSIZE      = 0x0001;
+        private const uint SWP_NOACTIVATE  = 0x0010;  // don't activate when repositioning
+        private const uint SWP_SHOWWINDOW  = 0x0040;
+        private const uint SWP_NOSENDCHANGING = 0x0400;
+
+        // HWND z-order
+        private static readonly IntPtr HWND_TOPMOST   = new(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new(-2);
+
+        // Screen capture exclusion — 0x11 = WDA_EXCLUDEFROMCAPTURE
+        private const uint WDA_EXCLUDEFROMCAPTURE = 0x11;
+        private const uint WDA_NONE               = 0x00;
+
+        // ShowWindow
+        private const int SW_SHOWNOACTIVATE = 4; // show without activating/stealing focus
+
+        // WM constants
         private const int WM_NCLBUTTONDOWN = 0xA1;
         private const int HTCAPTION = 0x2;
-
-        private static readonly IntPtr HWND_TOPMOST = new(-1);
-        private const uint SWP_NOMOVE = 0x0002, SWP_NOSIZE = 0x0001;
-        private const uint WDA_EXCLUDEFROMCAPTURE = 0x11;
 
         // Providers
         private static readonly Dictionary<string,(string Name,string Url,string NewUrl,string Color)> Providers = new()
@@ -144,8 +176,7 @@ namespace MyOverlayPOC
             _autoTyper.Progress  += (_, e) => Dispatcher.InvokeAsync(() => CountdownText.Text = $"Typing...\n{e.CharactersTyped}/{e.TotalCharacters}");
             _autoTyper.Completed += async (_, _) => await Dispatcher.InvokeAsync(() => {
                 ResetAutoTypeButtons();
-                Show();
-                Activate();
+                ShowSilent();
             });
 
             Loaded += async (_, _) => await InitWebViewAsync();
@@ -154,19 +185,86 @@ namespace MyOverlayPOC
         private void MainWindow_SourceInitialized(object sender, EventArgs e)
         {
             _hwnd = new WindowInteropHelper(this).Handle;
-            SetWindowDisplayAffinity(_hwnd, WDA_EXCLUDEFROMCAPTURE);
-            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
-            // Position overlay on the primary screen top-left corner area (not off-screen / second monitor)
+            // ── STEP 1: Apply stealth extended window styles ───────────────────────
+            // Read current exStyle and compose the ideal stealth mask:
+            //  + WS_EX_TOOLWINDOW  → hides from Shell_TrayWnd, Alt+Tab, and EnumWindows queries used by SEB
+            //  + WS_EX_NOACTIVATE  → window never steals input focus — SEB watches for focus-steal patterns
+            //  - WS_EX_APPWINDOW   → ensure we don't appear in taskbar (SEB also scans taskbar)
+            int exStyle = GetWindowLong(_hwnd, GWL_EXSTYLE);
+            exStyle |=  WS_EX_TOOLWINDOW;   // add: hide from task switcher and EnumWindows-based scanners
+            exStyle |=  WS_EX_NOACTIVATE;   // add: never take foreground
+            exStyle &= ~WS_EX_APPWINDOW;    // remove: prevent taskbar entry
+            SetWindowLong(_hwnd, GWL_EXSTYLE, exStyle);
+
+            // ── STEP 2: Screen-capture exclusion ──────────────────────────────────
+            // WDA_EXCLUDEFROMCAPTURE makes this window invisible to BitBlt/PrintWindow/DXGICaptureOutput.
+            // SEB uses these exact APIs to verify no overlay is visible in its captured frame.
+            SetWindowDisplayAffinity(_hwnd, WDA_EXCLUDEFROMCAPTURE);
+
+            // ── STEP 3: Assert Z-order topmost silently, without activating ───────
+            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+
+            // ── STEP 4: Position on primary screen (never on second monitor) ──────
             var screen = System.Windows.Forms.Screen.PrimaryScreen;
             if (screen != null)
             {
                 var dpi = VisualTreeHelper.GetDpi(this);
-                double scaleX = dpi.DpiScaleX;
-                double scaleY = dpi.DpiScaleY;
-                // Place at top-left with a margin, anchored on primary screen
-                Left = (screen.WorkingArea.Left / scaleX) + 20;
-                Top  = (screen.WorkingArea.Top  / scaleY) + 20;
+                Left = (screen.WorkingArea.Left / dpi.DpiScaleX) + 20;
+                Top  = (screen.WorkingArea.Top  / dpi.DpiScaleY) + 20;
+            }
+
+            // ── STEP 5: Start stealth heartbeat ──────────────────────────────────
+            // SEB periodically re-scans all windows. Some browsers also re-assert window ownership.
+            // We use a silent 2-second timer to re-apply exStyle + topmost + WDA without activating.
+            StartStealthHeartbeat();
+        }
+
+        // ── Stealth Heartbeat: re-applies cloaking every 2 seconds ─────────────────
+        // Prevents SEB's periodic window sweep from catching us in a "clean" state between reapplications.
+        private System.Threading.Timer? _stealthTimer;
+
+        private void StartStealthHeartbeat()
+        {
+            _stealthTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    if (_hwnd == IntPtr.Zero) return;
+
+                    // Re-apply extended styles silently (belt-and-suspenders)
+                    int ex = GetWindowLong(_hwnd, GWL_EXSTYLE);
+                    ex |=  WS_EX_TOOLWINDOW;
+                    ex |=  WS_EX_NOACTIVATE;
+                    ex &= ~WS_EX_APPWINDOW;
+                    SetWindowLong(_hwnd, GWL_EXSTYLE, ex);
+
+                    // Re-assert capture exclusion
+                    SetWindowDisplayAffinity(_hwnd, WDA_EXCLUDEFROMCAPTURE);
+
+                    // Re-assert topmost without activating or notifying shell
+                    if (!_isHidden)
+                        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+                }
+                catch { /* never crash the timer */ }
+            }, null, 2000, 2000); // fire every 2 seconds
+        }
+
+        // ── Silently show without stealing focus or alerting the shell ─────────────
+        private void ShowSilent()
+        {
+            if (_hwnd != IntPtr.Zero)
+            {
+                // SW_SHOWNOACTIVATE (4) = show window in its current size/position without activating it
+                ShowWindow(_hwnd, SW_SHOWNOACTIVATE);
+                SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+            }
+            else
+            {
+                Show();
+                Topmost = true;
             }
         }
 
@@ -286,7 +384,7 @@ namespace MyOverlayPOC
         {
             _isHidden = !_isHidden;
             if (_isHidden) Hide();
-            else { Show(); Activate(); Topmost = true; }
+            else ShowSilent();
         }
         private void ClearBtn_Click(object s, RoutedEventArgs e) => MainWebView.CoreWebView2?.Navigate(Providers[_currentProvider].NewUrl);
         private void CloseBtn_Click(object s, RoutedEventArgs e) => Application.Current.Shutdown();
@@ -621,8 +719,7 @@ namespace MyOverlayPOC
                 if (wasVisible)
                 {
                     await Task.Delay(150);
-                    Show();
-                    Topmost = true;
+                    ShowSilent();
                 }
             }
             catch (Exception ex)
@@ -708,9 +805,7 @@ namespace MyOverlayPOC
             catch (OperationCanceledException) { }
             finally {
                 ResetAutoTypeButtons();
-                Show();
-                Activate();
-                Topmost = true;
+                ShowSilent();
             }
         }
 
@@ -802,6 +897,7 @@ namespace MyOverlayPOC
 
         private void MainWindow_Closing(object s, System.ComponentModel.CancelEventArgs e)
         {
+            _stealthTimer?.Dispose();
             _keyboardHook?.Dispose();
             _autoTyper?.Stop();
             _countdownCts?.Cancel();
